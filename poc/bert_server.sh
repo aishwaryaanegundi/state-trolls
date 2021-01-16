@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -p gpu20
-#SBATCH -t 48:00:00
+#SBATCH -t 25:55:00
 #SBATCH --nodes 1
 #SBATCH --gres gpu:4
 #SBATCH -o server.log
@@ -16,8 +16,8 @@ export CUDA_VISIBLE_DEVICES=1-40
 export GPU_DEVICE_ORDINAL=1-40
 export TMPDIR=/INET/state-trolls/work/state-trolls/poc/tmp
 
-# logs the IP address of the server to be used by the Bert Client instantiation
-ip a
+# logs the IP address of the server to be used by the Bert Client instantiation to  server_ip_address.txt
+python get_ipaddr.py
 
 # Run the server as a daemon process
 srun --gres=gpu:4 bert-serving-start -model_dir ./models/uncased_L-12_H-768_A-12/ -max_batch_size 1024 -num_worker 4 -gpu_memory_fraction 1.0 -max_seq_len 300 -mask_cls_sep -device_map 0 1 2 3 &
