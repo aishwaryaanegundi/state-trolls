@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -p gpu20
-#SBATCH -t 25:55:00
+#SBATCH -t 27:55:00
 #SBATCH --nodes 1
 #SBATCH --gres gpu:4
 #SBATCH -o server.log
