@@ -16,4 +16,4 @@ export CUDA_VISIBLE_DEVICES=1-40
 export GPU_DEVICE_ORDINAL=1-40
 export TMPDIR=/INET/state-trolls/work/state-trolls/poc/tmp
 echo $1
-python -u BertEncodingsForRedditData.py -i $1
+python -u bert_client.py -i $1

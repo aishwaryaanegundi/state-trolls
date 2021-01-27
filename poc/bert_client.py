@@ -3,6 +3,7 @@ import pandas as pd
 import csv
 import os
 import re
+import emoji
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import time
@@ -75,11 +76,19 @@ def remove_punctuations(tweet):
     result = tweet.translate(str.maketrans('', '', string.punctuation))
     return result
 
+def remove_emojis(tweet):
+    result = re.sub(emoji.get_emoji_regexp(), "", tweet)
+    return result
+
+def remove_special_char(tweet):
+    result = re.sub(r"[^a-zA-Z0-9 ]", "", tweet)
+    return result
+
 # takes list of tweets as input and returns list of pre-processed tweets as output
 def preprocess(tweets):
     processed_tweets = []
     for tweet in tweets:
-        result = remove_punctuations(remove_mentions(remove_retweet(remove_url(tweet))))
+        result = remove_special_char(remove_punctuations(remove_emojis(remove_mentions(remove_retweet(remove_url(tweet))))))
         processed_tweets.append(result)
     return processed_tweets
 
@@ -118,7 +127,7 @@ from bert_serving.client import BertClient
 
 # save the encodings for later use. Order preserved
 # np.save('encodings_for_filtered_data', encodings)
-encodings = np.load('encodings_for_filtered_data.npy')
+encodings = np.load('encodings_for_removed_emojis.npy')
 print('shape of the encoding: ', encodings.shape)
 
 # ## Preprocessing the comments to remove urls, user and subreddit mentions, punctuations and newline characters
@@ -143,19 +152,26 @@ def remove_subreddit_mentions(post):
     result = re.sub(r"/r/\S+", "", post)
     return result
 
+def remove_emojis(post):
+    result = re.sub(emoji.get_emoji_regexp(), "", post)
+    return result
+
+def remove_special_char(post):
+    result = re.sub(r"[^a-zA-Z0-9 ]", "", post)
+    return result
+
 
 # takes list of posts as input and returns list of pre-processed posts as output
 ''' 
 Todo:
-- Remove emojis
 - check if the body says [deleted]
 - check if the body is null
 '''
 def preprocess(posts):
     processed_posts = []
     for post in posts:
-        result = remove_newlines(remove_punctuations(
-            remove_subreddit_mentions(remove_user_mentions(remove_url(post)))))
+        result = remove_newlines(remove_special_char(remove_emojis(remove_punctuations(
+            remove_subreddit_mentions(remove_user_mentions(remove_url(post)))))))
         processed_posts.append(result)
     return processed_posts
 
@@ -185,11 +201,11 @@ with open("json_read_iteration.txt", "r") as file1:
     
 # input and output file definition
 filename = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/' + inputfile
-output_filename = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/' + inputfile + '-' + str(iterated)+'_scores.json'
+output_filename = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/' + inputfile + '-' + str(iterated)+'_scores_emojis.json'
 print('starting from iteration: ', iterated)
 iteration = 0
 for chunk in pd.read_json(filename,lines = True, chunksize=10000):
-    if ((iteration >= iterated) & (iteration < iterated + 3500)):
+    if ((iteration >= iterated) & (iteration < iterated + 2500)):
         start_time = time.perf_counter()
 #         output_filename = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/' + inputfile + '-' + str(iteration)+'_scores.json'
         with open(output_filename, 'w') as to_file:
@@ -229,14 +245,14 @@ for chunk in pd.read_json(filename,lines = True, chunksize=10000):
                 i = i + 1
         end_time = time.perf_counter()
         print("Time taken for iteration ", iteration, 'is : ', (end_time - start_time)/60.0 ," minutes")
-    elif not (iteration < iterated + 3500):
+    elif not (iteration < iterated + 2500):
         break
     iteration = iteration + 1
 print('iteration to be written to file: ', iteration)
 with open("json_read_iteration.txt", "w") as file1: 
      file1.write(str(iteration))
         
-if (iteration < iterated + 3500):
+if (iteration < iterated + 2500):
     with open("job_status.txt", "w") as file1: 
         file1.write(str('1'))
     
