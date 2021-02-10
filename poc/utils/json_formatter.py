@@ -7,7 +7,9 @@ data = []
 try:
     with open('/INET/state-trolls/work/state-trolls/reddit_dataset/comments/RC_2016-01.scores-merged.json', 'r') as content_file:
         content = content_file.read()
-        jsons = content.replace('}','}#') 
+        print('file content read')
+        jsons = content.replace('}','}#')
+        print('replacement done')
         jsons = jsons.split('#')
         print('processed')
     for element in jsons:

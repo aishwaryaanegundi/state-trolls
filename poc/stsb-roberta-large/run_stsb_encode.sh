@@ -17,12 +17,12 @@ export GPU_DEVICE_ORDINAL=1-40
 export TMPDIR=/INET/state-trolls/work/state-trolls/poc/tmp
 
 # run the process to encode tweets
-#srun --gres=gpu:4 python sts-trial.py &
-python -u stsb_encode.py -i $1
+srun --gres=gpu:4 python -u stsb_encode.py -i $1 &
+#python -u stsb_encode.py -i $1
 # # code to print gpu stats while running the server
-# for i in {0..300..2}
-#   do 
-#      nvidia-smi
-#      sleep 15 
-#  done
-# wait 
+for i in {0..600..2}
+   do 
+      nvidia-smi
+      sleep 15 
+   done
+wait 
