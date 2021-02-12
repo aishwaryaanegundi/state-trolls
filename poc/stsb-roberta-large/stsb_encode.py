@@ -38,30 +38,6 @@ english_data = data[is_english_tweet]
 print("Number of English tweets in the dataset: ", english_data.shape[0])
 english_tweet_data = english_data[['tweetid', 'tweet_text']]
 
-def remove_url(tweet):
-    result = re.sub(r"http\S+", "", tweet)
-    return result
-
-def remove_mentions(tweet):
-    result = re.sub(r"@\S+", "", tweet)
-    return result
-
-def remove_retweet(tweet):
-    result = re.sub(r"RT @\S+", "", tweet)
-    return result
-
-def remove_punctuations(tweet):
-    result = tweet.translate(str.maketrans('', '', string.punctuation))
-    return result
-
-def remove_emojis(tweet):
-    result = re.sub(emoji.get_emoji_regexp(), "", tweet)
-    return result
-
-def remove_special_char(tweet):
-    result = re.sub(r"[^a-zA-Z0-9 ]", "", tweet)
-    return result
-
 # takes list of tweets as input and returns list of pre-processed tweets as output
 def preprocess(tweets):
     processed_tweets = []
@@ -72,7 +48,6 @@ def preprocess(tweets):
         result = re.sub(emoji.get_emoji_regexp(), "", result)
         result_removed_punctuation = result.translate(str.maketrans('', '', string.punctuation))
         result = re.sub(r"[^a-zA-Z0-9 ]", "", result_removed_punctuation)
-#         result = remove_special_char(remove_punctuations(remove_emojis(remove_mentions(remove_retweet(remove_url(tweet))))))
         processed_tweets.append(result)
     return processed_tweets
 
@@ -104,15 +79,6 @@ f_english_tweet_data.drop_duplicates(subset ="tweetid", keep = 'first', inplace 
 f_english_tweet_data = f_english_tweet_data.reset_index()
 print("Number of english tweets after filtering and preprocessing and dropping the duplicates: ", f_english_tweet_data.shape[0])
 
-
-# obtain the encodings for the filtered data
-# from sentence_transformers import SentenceTransformer
-# roberta_model = SentenceTransformer('stsb-roberta-large', device = 'cuda')
-# # encodings = bc.encode(f_english_tweet_data['processed_tweets'].to_list())
-# encodings = roberta_model.encode(f_english_tweet_data['processed_tweets'].to_list(), batch_size=1024, convert_to_numpy=True,
-#                                 device='cuda', num_workers=4)
-# print("Number of dimensions in the encodings: ", encodings.shape)
-
 # obtain the filename of the reddit data to be encoded
 import sys, getopt
 inputfile = ''
@@ -142,13 +108,14 @@ logging.basicConfig(format='%(asctime)s - %(message)s',
                     level=logging.INFO,
                     handlers=[LoggingHandler()])
 
-#Important, you need to shield your code with if __name__. Otherwise, CUDA runs into issues when spawning new processes.
+
 if __name__ == '__main__':
     main(sys.argv[1:])
     #Create a large list of 100k sentences
     sentences = f_english_tweet_data['processed_tweets'].to_list()
     #Define the model
     model = SentenceTransformer('stsb-roberta-large')
+    model.max_seq_length = 300
     #Start the multi-process pool on all available CUDA devices
     pool = model.start_multi_process_pool()
     #Compute the embeddings using the multi-process pool
@@ -163,37 +130,7 @@ if __name__ == '__main__':
     encodings = np.load('encodings_stsb_roberta_large.npy')
     print('shape of the encoding after reloading: ', encodings.shape)
 #     model.stop_multi_process_pool(pool)
-    
-    # ## Preprocessing the comments to remove urls, user and subreddit mentions, punctuations and newline characters
-
-    def remove_url(post):
-        result = re.sub(r"http\S+", "", post)
-        return result
-
-    def remove_punctuations(post):
-        result = post.translate(str.maketrans('', '', string.punctuation))
-        return result
-
-    def remove_newlines(post):
-        result = post.translate(str.maketrans('\n', ' '))
-        return result
-
-    def remove_user_mentions(post):
-        result = re.sub(r"/u/\S+", "", post)
-        return result
-
-    def remove_subreddit_mentions(post):
-        result = re.sub(r"/r/\S+", "", post)
-        return result
-
-    def remove_emojis(post):
-        result = re.sub(emoji.get_emoji_regexp(), "", post)
-        return result
-
-    def remove_special_char(post):
-        result = re.sub(r"[^a-zA-Z0-9 ]", "", post)
-        return result
-
+  
 
     # takes list of posts as input and returns list of pre-processed posts as output
     ''' 
@@ -211,8 +148,6 @@ if __name__ == '__main__':
             result_removed_punctuation = result.translate(str.maketrans('', '', string.punctuation))
             result = re.sub(r"[^a-zA-Z0-9 ]", "", result_removed_punctuation)
             result_removed_newlines = result.translate(str.maketrans('\n', ' '))
-#             result = remove_newlines(remove_special_char(remove_emojis(remove_punctuations(
-#                 remove_subreddit_mentions(remove_user_mentions(remove_url(post)))))))
             processed_posts.append(result_removed_newlines)
         return processed_posts
 
@@ -238,15 +173,29 @@ if __name__ == '__main__':
     output_filename = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/' + inputfile + '-' + str(iterated)+'_scores_stsb.json'
     print('starting from iteration: ', iterated)
     iteration = 0
-    for chunk in pd.read_json(filename,lines = True, chunksize=10000):
-        if ((iteration >= iterated) & (iteration < iterated + 2500)):
+    for chunk in pd.read_json(filename,lines = True, chunksize=100):
+        print('Length of chunk before removing automoderator posts: ', len(chunk))
+        chunk = chunk[chunk.author != 'AutoModerator']
+        print('Length of chunk after removing automoderator posts: ', len(chunk))
+        id_sentences = []
+        if ((iteration >= iterated) & (iteration < iterated + 2)):
             start_time = time.perf_counter()
-    #         output_filename = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/' + inputfile + '-' + str(iteration)+'_scores.json'
             with open(output_filename, 'w') as to_file:
-                posts = chunk['body']
-                posts = preprocess(posts)
-                chunk = chunk.assign(preprocessed_body = posts)
-                chunk_id_body = chunk[['id', 'preprocessed_body']]
+                sent_tokenize_begin = time.perf_counter()
+                for index, row in chunk.iterrows():
+                    sentences = nltk.sent_tokenize(row['body'])                
+                    for idx,sentence in enumerate(sentences):
+                        id_sentences.append({'id':row['id'], 'body': sentence, 's_id': idx})
+                sent_tokenize_end = time.perf_counter()
+                print("Time taken for sentence tokenization is :",
+                      (sent_tokenize_end - sent_tokenize_begin)/60.0 ," minutes")
+                print('length of sentences is: ', len(id_sentences))
+                sentence_df = pd.DataFrame(id_sentences)
+                sentence_texts = sentence_df['body']
+                sentence_texts = preprocess(sentence_texts)
+                sentence_df = sentence_df.assign(preprocessed_body = sentence_texts)
+                chunk = sentence_df
+                chunk_id_body = chunk[['id', 'preprocessed_body','s_id']]
                 is_not_deleted_body = chunk_id_body['preprocessed_body'].apply(lambda x: not ('deleted' == x))
                 chunk_id_body = chunk_id_body[is_not_deleted_body]
                 # removes the entries having just space after preprocessing
@@ -256,42 +205,46 @@ if __name__ == '__main__':
                 is_not_empty_string = chunk_id_body['preprocessed_body'].apply(lambda x: not x == '')
                 chunk_id_body = chunk_id_body[is_not_empty_string]
                 # encode the comments
-#                 pool = model.start_multi_process_pool()
                 start_time_e = time.perf_counter()
-                encoded_comments = model.encode_multi_process(chunk_id_body['preprocessed_body'].to_list(), pool)
+                encoded_comments = model.encode_multi_process(chunk_id_body['preprocessed_body'].to_list(),
+                                                              pool,batch_size = 128)
                 end_time_e = time.perf_counter()
-#                 model.stop_multi_process_pool(pool)
-                print("Time taken for encoding comments is :", (end_time_e - start_time_e)/60.0 ," minutes. Iteration: ", iteration)
+                print("Time taken for encoding comments is :", (end_time_e - start_time_e)/60.0 ,
+                      " minutes. Iteration: ", iteration)
                 query = normalize_rows(encoded_comments)
-                start_time_s = time.perf_counter()
-                D, I = gpu_index.search(query, 1000) 
-                end_time_s = time.perf_counter()
-                print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
+#                 start_time_s = time.perf_counter()
+#                 D, I = gpu_index.search(query, 1000) 
+#                 end_time_s = time.perf_counter()
+#                 print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
                 i = 0
-                for post_id in chunk_id_body['id']:
-                    scores = D[i]
-                    indices = I[i]
-        #             last_index = 999
-                    for idx, score in enumerate(scores):
-                      if score < 0.95:
-                          break
-                      tweet_idx = indices[idx]
-                      cos_sim = scores[idx]
-                      record = {'tweet_id':str(f_english_tweet_data.iloc[tweet_idx]['tweetid']), 
-                                'post_id':post_id, 'cosine_similarity': str(cos_sim)}
-                      json.dump(record, to_file)      
-        #                     last_index = idx
+                for post_id,sent_id in chunk_id_body['id','s_id']:
+                    q = query[i]
+                    start_time_s = time.perf_counter()
+                    D, I = gpu_index.search(q, 1662390) 
+                    end_time_s = time.perf_counter()
+                    print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
+                    scores = D[0]
+                    indices = I[0]
+                    o_f = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/annotations/' + inputfile + '-' + str(iterated)+str(i)+'.json'
+                    with open(o_f, 'w') as t_f:
+                        for idx, score in enumerate(scores):
+                          tweet_idx = indices[idx]
+                          cos_sim = scores[idx]
+                          record = {'tweet_id':str(f_english_tweet_data.iloc[tweet_idx]['tweetid']), 
+                                    'post_id':post_id,'s_id':sent_id, 'cosine_similarity': str(cos_sim)}
+                          json.dump(record, t_f)      
                     i = i + 1
+                    print('completed query: ', i)
             end_time = time.perf_counter()
             print("Time taken for iteration ", iteration, 'is : ', (end_time - start_time)/60.0 ," minutes")
-        elif not (iteration < iterated + 2500):
+        elif not (iteration < iterated + 2):
             break
         iteration = iteration + 1
     print('iteration to be written to file: ', iteration)
     with open("json_read_iteration.txt", "w") as file1: 
          file1.write(str(iteration))
 
-    if (iteration < iterated + 2500):
+    if (iteration < iterated + 2):
         with open("job_status.txt", "w") as file1: 
             file1.write(str('1'))
 
