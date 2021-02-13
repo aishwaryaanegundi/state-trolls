@@ -10,6 +10,7 @@ import random
 import emoji
 import string
 import json
+import nltk
 
 from sklearn.metrics import pairwise_distances
 from scipy.spatial.distance import cosine
@@ -217,7 +218,7 @@ if __name__ == '__main__':
 #                 end_time_s = time.perf_counter()
 #                 print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
                 i = 0
-                for post_id,sent_id in chunk_id_body['id','s_id']:
+                for loc, entry in chunk_id_body.iterrows():
                     q = query[i]
                     start_time_s = time.perf_counter()
                     D, I = gpu_index.search(q, 1662390) 
@@ -231,7 +232,7 @@ if __name__ == '__main__':
                           tweet_idx = indices[idx]
                           cos_sim = scores[idx]
                           record = {'tweet_id':str(f_english_tweet_data.iloc[tweet_idx]['tweetid']), 
-                                    'post_id':post_id,'s_id':sent_id, 'cosine_similarity': str(cos_sim)}
+                                    'post_id':entry['id'],'s_id':entry['s_id'], 'cosine_similarity': str(cos_sim)}
                           json.dump(record, t_f)      
                     i = i + 1
                     print('completed query: ', i)
