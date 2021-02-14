@@ -219,7 +219,7 @@ if __name__ == '__main__':
 #                 print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
                 i = 0
                 for loc, entry in chunk_id_body.iterrows():
-                    q = query[i]
+                    q = np.array(np.reshape(query[i], (-1,1024)))
                     start_time_s = time.perf_counter()
                     D, I = gpu_index.search(q, 1662390) 
                     end_time_s = time.perf_counter()
