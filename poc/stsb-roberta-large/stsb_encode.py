@@ -112,7 +112,6 @@ logging.basicConfig(format='%(asctime)s - %(message)s',
 
 if __name__ == '__main__':
     main(sys.argv[1:])
-    #Create a large list of 100k sentences
     sentences = f_english_tweet_data['processed_tweets'].to_list()
     #Define the model
     model = SentenceTransformer('stsb-roberta-large')
@@ -160,9 +159,11 @@ if __name__ == '__main__':
     import faiss
     dimension = 1024
     res = faiss.StandardGpuResources()
+    index_cpu = faiss.IndexFlatIP(dimension)
     index_true_flatIP = faiss.IndexFlatIP(dimension)
     gpu_index = faiss.index_cpu_to_all_gpus(index_true_flatIP)
     print('normalized rows shape:', (normalize_rows(encodings)).shape)
+    index_cpu.add(normalize_rows(encodings))
     gpu_index.add(normalize_rows(encodings))    
 
     # Get the iteration number
@@ -174,12 +175,12 @@ if __name__ == '__main__':
     output_filename = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/' + inputfile + '-' + str(iterated)+'_scores_stsb.json'
     print('starting from iteration: ', iterated)
     iteration = 0
-    for chunk in pd.read_json(filename,lines = True, chunksize=100):
+    for chunk in pd.read_json(filename,lines = True, chunksize=10000):
         print('Length of chunk before removing automoderator posts: ', len(chunk))
         chunk = chunk[chunk.author != 'AutoModerator']
         print('Length of chunk after removing automoderator posts: ', len(chunk))
         id_sentences = []
-        if ((iteration >= iterated) & (iteration < iterated + 2)):
+        if ((iteration >= iterated) & (iteration < iterated + 3000)):
             start_time = time.perf_counter()
             with open(output_filename, 'w') as to_file:
                 sent_tokenize_begin = time.perf_counter()
@@ -208,7 +209,7 @@ if __name__ == '__main__':
                 # encode the comments
                 start_time_e = time.perf_counter()
                 encoded_comments = model.encode_multi_process(chunk_id_body['preprocessed_body'].to_list(),
-                                                              pool,batch_size = 128)
+                                                              pool,batch_size = 512)
                 end_time_e = time.perf_counter()
                 print("Time taken for encoding comments is :", (end_time_e - start_time_e)/60.0 ,
                       " minutes. Iteration: ", iteration)
@@ -217,35 +218,46 @@ if __name__ == '__main__':
 #                 D, I = gpu_index.search(query, 1000) 
 #                 end_time_s = time.perf_counter()
 #                 print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
-                i = 0
+#                 i = 0
                 for loc, entry in chunk_id_body.iterrows():
-                    q = np.array(np.reshape(query[i], (-1,1024)))
+                    q = np.array(np.reshape(query[loc], (-1,1024)))
                     start_time_s = time.perf_counter()
-                    D, I = gpu_index.search(q, 1662390) 
+                    k = 1000
+                    got_all_entries = False
+                    D, I = gpu_index.search(q, k) 
                     end_time_s = time.perf_counter()
                     print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
+                    while (not (got_all_entries)):
+                        if (D[0][k-1] > 0.65):
+                            print('Did not get all hits')
+                            k = k + 1000
+                            D, I = index_cpu.search(q, k)
+                        else:
+                            got_all_entries = True
                     scores = D[0]
                     indices = I[0]
-                    o_f = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/annotations/' + inputfile + '-' + str(iterated)+str(i)+'.json'
-                    with open(o_f, 'w') as t_f:
-                        for idx, score in enumerate(scores):
+                    print(len(scores))
+#                     o_f = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/annotations/' + inputfile + '-' + str(iterated)+str(i)+'.json'
+#                     with open(o_f, 'w') as t_f:
+                    for idx, score in enumerate(scores):
+                        if (score >= 0.65):
                           tweet_idx = indices[idx]
                           cos_sim = scores[idx]
                           record = {'tweet_id':str(f_english_tweet_data.iloc[tweet_idx]['tweetid']), 
                                     'post_id':entry['id'],'s_id':entry['s_id'], 'cosine_similarity': str(cos_sim)}
-                          json.dump(record, t_f)      
-                    i = i + 1
-                    print('completed query: ', i)
+                          json.dump(record, to_file)      
+#                     i = i + 1
+#                     print('completed query: ', i)
             end_time = time.perf_counter()
             print("Time taken for iteration ", iteration, 'is : ', (end_time - start_time)/60.0 ," minutes")
-        elif not (iteration < iterated + 2):
+        elif not (iteration < iterated + 3000):
             break
         iteration = iteration + 1
     print('iteration to be written to file: ', iteration)
     with open("json_read_iteration.txt", "w") as file1: 
          file1.write(str(iteration))
 
-    if (iteration < iterated + 2):
+    if (iteration < iterated + 3000):
         with open("job_status.txt", "w") as file1: 
             file1.write(str('1'))
 
