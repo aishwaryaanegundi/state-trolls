@@ -219,7 +219,8 @@ if __name__ == '__main__':
 #                 end_time_s = time.perf_counter()
 #                 print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
 #                 i = 0
-                for loc, entry in chunk_id_body.iterrows():
+                for loc, entry in enumerate(chunk_id_body.iterrows()):
+                    entry = entry[1]
                     q = np.array(np.reshape(query[loc], (-1,1024)))
                     start_time_s = time.perf_counter()
                     k = 1000
