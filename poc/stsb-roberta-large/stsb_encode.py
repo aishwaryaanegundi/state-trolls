@@ -223,8 +223,7 @@ if __name__ == '__main__':
                     scores = D[loc]
                     if (scores[999] > 0.65):
                         repeat_search_list.append(loc)
-                    print('length of repeated search list: ', len(repeat_search_list))
-#                 for post_id in chunk_id_body['id']:
+                print('length of repeated search list: ', len(repeat_search_list))
                 for loc, entry in enumerate(chunk_id_body.iterrows()):
                     if (loc not in repeat_search_list):
                         entry = entry[1]
@@ -237,32 +236,34 @@ if __name__ == '__main__':
                             cos_sim = scores[idx]
                             record = {'tweet_id':str(f_english_tweet_data.iloc[tweet_idx]['tweetid']), 
                                     'post_id':row['id'], 'cosine_similarity': str(cos_sim), 'sent_id':entry['s_id']}
-                for index in repeat_search_list:
-                    entry = chunk_id_body.iloc[index]
-                    q = np.array(np.reshape(query[index], (-1,1024)))
-                    start_time_s = time.perf_counter()
-                    k = 1000
-                    got_all_entries = False
-                    D, I = gpu_index.search(q, k) 
-                    end_time_s = time.perf_counter()
-                    print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
-                    while (not (got_all_entries)):
-                        if (D[0][k-1] > 0.65):
-                            print('Did not get all hits')
-                            k = k + 1000
-                            D, I = index_cpu.search(q, k)
-                        else:
-                            got_all_entries = True
-                    scores = D[0]
-                    indices = I[0]
+                            
+                chunk_id_body = chunk_id_body.iloc[repeat_search_list]
+                print('length of chunk for only entries to be researched: ', len(chunk_id_body))
+                # encode the comments
+                start_time_e = time.perf_counter()
+                encoded_comments = model.encode_multi_process(chunk_id_body['preprocessed_body'].to_list(),
+                                                              pool,batch_size = 512)
+                end_time_e = time.perf_counter()
+                print("Time taken for encoding comments (repeateds search) is :", (end_time_e - start_time_e)/60.0 ,
+                      " minutes. Iteration: ", iteration)
+                query = normalize_rows(encoded_comments)
+                start_time_s = time.perf_counter()
+                D, I = index_cpu.search(query, 20000) 
+                end_time_s = time.perf_counter()
+                print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
+                
+                for loc, entry in enumerate(chunk_id_body.iterrows()):
+                    entry = entry[1]
+                    scores = D[loc]
+                    indices = I[loc]
                     for idx, score in enumerate(scores):
-                        if (score < 0.65):
+                        if score < 0.65:
                             break
                         tweet_idx = indices[idx]
                         cos_sim = scores[idx]
                         record = {'tweet_id':str(f_english_tweet_data.iloc[tweet_idx]['tweetid']), 
-                               'post_id':entry['id'],'cosine_similarity': str(cos_sim), 'sent_id':str(entry['s_id'])}     
-                        json.dump(record, to_file)      
+                                'post_id':row['id'], 'cosine_similarity': str(cos_sim), 'sent_id':entry['s_id']}
+ 
             end_time = time.perf_counter()
             print("Time taken for iteration ", iteration, 'is : ', (end_time - start_time)/60.0 ," minutes")
         elif not (iteration < iterated + 3000):
