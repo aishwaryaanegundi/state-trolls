@@ -91,13 +91,13 @@ def main(argv):
       print ('test.py -i <inputfile> -o <outputfile>')
       sys.exit(2)
     for opt, arg in opts:
-      if opt == '-h':
-         print ('test.py -i <inputfile> -o <outputfile>')
-         sys.exit()
-      elif opt in ("-i", "--ifile"):
-         inputfile = arg
-      elif opt in ("-o", "--ofile"):
-         outputfile = arg
+        if opt == '-h':
+            print ('test.py -i <inputfile> -o <outputfile>')
+            sys.exit()
+        elif opt in ("-i", "--ifile"):
+            inputfile = arg
+        elif opt in ("-o", "--ofile"):
+            outputfile = arg
     print('Input file is ', inputfile)
     
     
@@ -214,14 +214,32 @@ if __name__ == '__main__':
                 print("Time taken for encoding comments is :", (end_time_e - start_time_e)/60.0 ,
                       " minutes. Iteration: ", iteration)
                 query = normalize_rows(encoded_comments)
-#                 start_time_s = time.perf_counter()
-#                 D, I = gpu_index.search(query, 1000) 
-#                 end_time_s = time.perf_counter()
-#                 print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
-#                 i = 0
+                start_time_s = time.perf_counter()
+                D, I = gpu_index.search(query, 1000) 
+                end_time_s = time.perf_counter()
+                print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
+                repeat_search_list = []
                 for loc, entry in enumerate(chunk_id_body.iterrows()):
-                    entry = entry[1]
-                    q = np.array(np.reshape(query[loc], (-1,1024)))
+                    scores = D[loc]
+                    if (scores[999] > 0.65):
+                        repeat_search_list.append(loc)
+                    print('length of repeated search list: ', len(repeat_search_list))
+#                 for post_id in chunk_id_body['id']:
+                for loc, entry in enumerate(chunk_id_body.iterrows()):
+                    if (loc not in repeat_search_list):
+                        entry = entry[1]
+                        scores = D[loc]
+                        indices = I[loc]
+                        for idx, score in enumerate(scores):
+                            if score < 0.65:
+                                break
+                            tweet_idx = indices[idx]
+                            cos_sim = scores[idx]
+                            record = {'tweet_id':str(f_english_tweet_data.iloc[tweet_idx]['tweetid']), 
+                                    'post_id':row['id'], 'cosine_similarity': str(cos_sim), 'sent_id':entry['s_id']}
+                for index in repeat_search_list:
+                    entry = chunk_id_body.iloc[index]
+                    q = np.array(np.reshape(query[index], (-1,1024)))
                     start_time_s = time.perf_counter()
                     k = 1000
                     got_all_entries = False
@@ -237,18 +255,14 @@ if __name__ == '__main__':
                             got_all_entries = True
                     scores = D[0]
                     indices = I[0]
-                    print(len(scores))
-#                     o_f = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/annotations/' + inputfile + '-' + str(iterated)+str(i)+'.json'
-#                     with open(o_f, 'w') as t_f:
                     for idx, score in enumerate(scores):
-                        if (score >= 0.65):
-                          tweet_idx = indices[idx]
-                          cos_sim = scores[idx]
-                          record = {'tweet_id':str(f_english_tweet_data.iloc[tweet_idx]['tweetid']), 
-                                    'post_id':entry['id'],'s_id':entry['s_id'], 'cosine_similarity': str(cos_sim)}
-                          json.dump(record, to_file)      
-#                     i = i + 1
-#                     print('completed query: ', i)
+                        if (score < 0.65):
+                            break
+                        tweet_idx = indices[idx]
+                        cos_sim = scores[idx]
+                        record = {'tweet_id':str(f_english_tweet_data.iloc[tweet_idx]['tweetid']), 
+                               'post_id':entry['id'],'cosine_similarity': str(cos_sim), 'sent_id':str(entry['s_id'])}     
+                        json.dump(record, to_file)      
             end_time = time.perf_counter()
             print("Time taken for iteration ", iteration, 'is : ', (end_time - start_time)/60.0 ," minutes")
         elif not (iteration < iterated + 3000):
