@@ -228,7 +228,8 @@ if __name__ == '__main__':
                 end_time_r = time.perf_counter()
                 print("Time taken for repeated search list: ",(end_time_r - start_time_r)/60.0 ," minutes")
                 print('length of repeated search list: ', len(repeat_search_list))
-                total_hits = 0
+                
+                all_hits = []
                 start_time_l = time.perf_counter()
                 post_ids = chunk_id_body['id'].tolist()
                 sent_ids = chunk_id_body['s_id'].tolist()
@@ -236,18 +237,23 @@ if __name__ == '__main__':
                     if (loc not in repeat_search_list):
                         scores = D[loc]
                         indices = I[loc]
-                        n_hits = 0
-                        for idx, score in enumerate(scores):
-                            if score < 0.65:
-                                total_hits = total_hits + n_hits
-                                break
-                            tweet_idx = indices[idx]
-                            cos_sim = score
-                            record = {'tweet_id':str(f_english_tweet_data.iloc[tweet_idx]['tweetid']), 
-                                    'post_id': post_id, 'cosine_similarity': str(cos_sim), 'sent_id': sent_ids[loc]}
-                            json.dump(record, to_file)
-                            n_hits = n_hits + 1
-                print('Average hits per post: ', total_hits/len(chunk_id_body))
+                        threshold_indices = np.where(scores >= 0.65)
+                        if (len(threshold_indices[0]) > 0):
+                            print(threshold_indices)
+                            print(threshold_indices[-1][-1]+1)
+                            relevant_scores = scores[:threshold_indices[-1][-1]+1]
+                            relevant_tweet_indices = indices[:threshold_indices[-1][-1]+1]
+                            tweet_ids = f_english_tweet_data.iloc[relevant_tweet_indices]['tweetid'].values
+                            p_ids = [post_id] * len(relevant_scores)
+                            s_ids = [sent_ids[loc]] * len(relevant_scores)
+                            result_df = pd.DataFrame()
+                            result_df['tweet_id'] = tweet_ids
+                            result_df['post_id'] = p_ids
+                            result_df['cosine_similarity'] = relevant_scores
+                            result_df['sent_id'] = s_ids
+                            print(result_df.head())
+                            all_hits = all_hits + result_df.to_dict('records')
+                json.dump(all_hits, to_file)
                 end_time = time.perf_counter()
                 print("Time taken for looping: ",
                       iteration, 'is : ', (end_time - start_time_l)/60.0 ," minutes")
@@ -276,19 +282,20 @@ if __name__ == '__main__':
                         scores = D[loc]
                         if (scores[19999] > 0.65):
                             repeat_search_list.append(loc)
-
-                    for loc, entry in enumerate(chunk_id_body.iterrows()):
+                    
+                    post_ids = chunk_id_body['id'].tolist()
+                    sent_ids = chunk_id_body['s_id'].tolist()
+                    for loc, post_id in enumerate(post_ids):
                         if (loc not in repeat_search_list):
-                            entry = entry[1]
                             scores = D[loc]
                             indices = I[loc]
                             for idx, score in enumerate(scores):
                                 if score < 0.65:
                                     break
                                 tweet_idx = indices[idx]
-                                cos_sim = scores[idx]
+                                cos_sim = score
                                 record = {'tweet_id':str(f_english_tweet_data.iloc[tweet_idx]['tweetid']), 
-                                        'post_id':row['id'], 'cosine_similarity': str(cos_sim), 'sent_id':entry['s_id']}
+                                        'post_id':post_id, 'cosine_similarity': str(cos_sim), 'sent_id':sent_ids[loc]}
                                 json.dump(record, to_file)
                     k = k + 10000
             end_time = time.perf_counter()
