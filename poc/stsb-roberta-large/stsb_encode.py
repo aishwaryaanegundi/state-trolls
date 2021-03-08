@@ -239,8 +239,6 @@ if __name__ == '__main__':
                         indices = I[loc]
                         threshold_indices = np.where(scores >= 0.65)
                         if (len(threshold_indices[0]) > 0):
-                            print(threshold_indices)
-                            print(threshold_indices[-1][-1]+1)
                             relevant_scores = scores[:threshold_indices[-1][-1]+1]
                             relevant_tweet_indices = indices[:threshold_indices[-1][-1]+1]
                             tweet_ids = f_english_tweet_data.iloc[relevant_tweet_indices]['tweetid'].values
@@ -251,9 +249,8 @@ if __name__ == '__main__':
                             result_df['post_id'] = p_ids
                             result_df['cosine_similarity'] = relevant_scores
                             result_df['sent_id'] = s_ids
-                            print(result_df.head())
-                            all_hits = all_hits + result_df.to_dict('records')
-                json.dump(all_hits, to_file)
+                            r = result_df.to_json(orient = "records")
+                            json.dump(r, to_file)
                 end_time = time.perf_counter()
                 print("Time taken for looping: ",
                       iteration, 'is : ', (end_time - start_time_l)/60.0 ," minutes")
@@ -289,14 +286,20 @@ if __name__ == '__main__':
                         if (loc not in repeat_search_list):
                             scores = D[loc]
                             indices = I[loc]
-                            for idx, score in enumerate(scores):
-                                if score < 0.65:
-                                    break
-                                tweet_idx = indices[idx]
-                                cos_sim = score
-                                record = {'tweet_id':str(f_english_tweet_data.iloc[tweet_idx]['tweetid']), 
-                                        'post_id':post_id, 'cosine_similarity': str(cos_sim), 'sent_id':sent_ids[loc]}
-                                json.dump(record, to_file)
+                            threshold_indices = np.where(scores >= 0.65)
+                            if (len(threshold_indices[0]) > 0):
+                                relevant_scores = scores[:threshold_indices[-1][-1]+1]
+                                relevant_tweet_indices = indices[:threshold_indices[-1][-1]+1]
+                                tweet_ids = f_english_tweet_data.iloc[relevant_tweet_indices]['tweetid'].values
+                                p_ids = [post_id] * len(relevant_scores)
+                                s_ids = [sent_ids[loc]] * len(relevant_scores)
+                                result_df = pd.DataFrame()
+                                result_df['tweet_id'] = tweet_ids
+                                result_df['post_id'] = p_ids
+                                result_df['cosine_similarity'] = relevant_scores
+                                result_df['sent_id'] = s_ids
+                                r = result_df.to_json(orient = "records")
+                                json.dump(r, to_file)
                     k = k + 10000
             end_time = time.perf_counter()
             print("Time taken for iteration ", iteration, 'is : ', (end_time - start_time)/60.0 ," minutes")
