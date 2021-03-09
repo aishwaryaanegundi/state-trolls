@@ -172,17 +172,18 @@ if __name__ == '__main__':
 
     # input and output file definition
     filename = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/' + inputfile
-    output_filename = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/' + inputfile + '-' + str(iterated)+'_scores_stsb.json'
+#     output_filename = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/' + inputfile + '-' + str(iterated)+'_scores_stsb.txt'
     print('starting from iteration: ', iterated)
     iteration = 0
     for chunk in pd.read_json(filename,lines = True, chunksize=10000):
-        print('Length of chunk before removing automoderator posts: ', len(chunk))
-        chunk = chunk[chunk.author != 'AutoModerator']
-        print('Length of chunk after removing automoderator posts: ', len(chunk))
-        id_sentences = []
-        if ((iteration >= iterated) & (iteration < iterated + 180)):
-            start_time = time.perf_counter()
-            with open(output_filename, 'w') as to_file:
+        output_filename = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/scores/' + inputfile + '/' + str(iteration)+'_scores_stsb.txt'
+        with open(output_filename, 'w') as outfile:
+            print('Length of chunk before removing automoderator posts: ', len(chunk))
+            chunk = chunk[chunk.author != 'AutoModerator']
+            print('Length of chunk after removing automoderator posts: ', len(chunk))
+            id_sentences = []
+            if ((iteration >= iterated) & (iteration < iterated + 870)):
+                start_time = time.perf_counter()
                 sent_tokenize_begin = time.perf_counter()
                 for index, row in chunk.iterrows():
                     sentences = nltk.sent_tokenize(row['body'])                
@@ -218,18 +219,17 @@ if __name__ == '__main__':
                 D, I = gpu_index.search(query, 1000) 
                 end_time_s = time.perf_counter()
                 print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
-                repeat_search_list = []
-                
+    #             repeat_search_list = []
+
                 start_time_r = time.perf_counter()
-                for loc, entry in enumerate(chunk_id_body.iterrows()):
-                    scores = D[loc]
-                    if (scores[999] > 0.65):
-                        repeat_search_list.append(loc)
+                repeat_search_list = ((np.where(np.all(D > 0.65, axis = 1)))[0]).tolist()
+    #             for loc, entry in enumerate(chunk_id_body.iterrows()):
+    #                 scores = D[loc]
+    #                 if (scores[999] > 0.65):
+    #                     repeat_search_list.append(loc)
                 end_time_r = time.perf_counter()
                 print("Time taken for repeated search list: ",(end_time_r - start_time_r)/60.0 ," minutes")
                 print('length of repeated search list: ', len(repeat_search_list))
-                
-                all_hits = []
                 start_time_l = time.perf_counter()
                 post_ids = chunk_id_body['id'].tolist()
                 sent_ids = chunk_id_body['s_id'].tolist()
@@ -249,14 +249,15 @@ if __name__ == '__main__':
                             result_df['post_id'] = p_ids
                             result_df['cosine_similarity'] = relevant_scores
                             result_df['sent_id'] = s_ids
+#                             with open(output_filename, 'a') as outfile:
                             r = result_df.to_json(orient = "records")
-                            json.dump(r, to_file)
+                            outfile.write(r)
                 end_time = time.perf_counter()
                 print("Time taken for looping: ",
                       iteration, 'is : ', (end_time - start_time_l)/60.0 ," minutes")
                 print("Time taken for iteration before repeated search is: ",
                       iteration, 'is : ', (end_time - start_time)/60.0 ," minutes")
-                
+
                 k = 20000
                 while (len(repeat_search_list) > 0):
                     chunk_id_body = chunk_id_body.iloc[repeat_search_list]
@@ -269,17 +270,16 @@ if __name__ == '__main__':
                     print("Time taken for encoding comments (repeateds search) is :", (end_time_e - start_time_e)/60.0 ,
                           " minutes. Iteration: ", iteration)
                     query = normalize_rows(encoded_comments)
-                    start_time_s = time.perf_counter()
+
                     D, I = index_cpu.search(query, k) 
-                    end_time_s = time.perf_counter()
-                    print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
-                    
-                    repeat_search_list = []
-                    for loc, entry in enumerate(chunk_id_body.iterrows()):
-                        scores = D[loc]
-                        if (scores[19999] > 0.65):
-                            repeat_search_list.append(loc)
-                    
+
+
+    #                 repeat_search_list = []
+    #                 for loc, entry in enumerate(chunk_id_body.iterrows()):
+    #                     scores = D[loc]
+    #                     if (scores[19999] > 0.65):
+    #                         repeat_search_list.append(loc)
+                    repeat_search_list = ((np.where(np.all(D > 0.65, axis = 1)))[0]).tolist()
                     post_ids = chunk_id_body['id'].tolist()
                     sent_ids = chunk_id_body['s_id'].tolist()
                     for loc, post_id in enumerate(post_ids):
@@ -298,19 +298,20 @@ if __name__ == '__main__':
                                 result_df['post_id'] = p_ids
                                 result_df['cosine_similarity'] = relevant_scores
                                 result_df['sent_id'] = s_ids
+#                                 with open(output_filename, 'a') as outfile:
                                 r = result_df.to_json(orient = "records")
-                                json.dump(r, to_file)
+                                outfile.write(r)
                     k = k + 10000
-            end_time = time.perf_counter()
-            print("Time taken for iteration ", iteration, 'is : ', (end_time - start_time)/60.0 ," minutes")
-        elif not (iteration < iterated + 180):
-            break
-        iteration = iteration + 1
+                end_time = time.perf_counter()
+                print("Time taken for iteration ", iteration, 'is : ', (end_time - start_time)/60.0 ," minutes")
+            elif not (iteration < iterated + 870):
+                break
+            iteration = iteration + 1
     print('iteration to be written to file: ', iteration)
     with open("json_read_iteration.txt", "w") as file1: 
          file1.write(str(iteration))
 
-    if (iteration < iterated + 180):
+    if (iteration < iterated + 870):
         with open("job_status.txt", "w") as file1: 
             file1.write(str('1'))
 
