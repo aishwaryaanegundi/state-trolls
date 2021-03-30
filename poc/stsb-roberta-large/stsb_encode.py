@@ -32,13 +32,6 @@ def get_combined_dataset(paths):
 data = get_combined_dataset(dataset_paths)
 print("Number of tweets in the dataset: ", data.shape[0])
 
-# extracts just the english tweets by using the language tag
-is_english_tweet = data['tweet_language'] == 'en'
-english_data = data[is_english_tweet]
-
-print("Number of English tweets in the dataset: ", english_data.shape[0])
-english_tweet_data = english_data[['tweetid', 'tweet_text']]
-
 # takes list of tweets as input and returns list of pre-processed tweets as output
 def preprocess(tweets):
     processed_tweets = []
@@ -65,6 +58,12 @@ print("Number of tweets in the dataset after filtering: ", data.shape[0])
 is_english_tweet = data['tweet_language'] == 'en'
 f_english_data = data[is_english_tweet]
 print("Number of English tweets in the filtered dataset: ", f_english_data.shape[0])
+
+# removes the retweets
+is_retweet = f_english_data['retweet_tweetid'].notnull()
+f_english_data = f_english_data[is_retweet]
+print("Number of entries in the dataset after removing retweets: ", f_english_data.shape[0])
+
 f_english_tweet_data = f_english_data[['tweetid', 'tweet_text']]
 
 tweets = f_english_tweet_data['tweet_text']
@@ -77,6 +76,7 @@ is_not_empty_string = f_english_tweet_data['processed_tweets'].apply(lambda x: n
 f_english_tweet_data = f_english_tweet_data[is_not_empty_string]
 print("Number of english tweets after filtering and preprocessing before dropping the duplicates: ", f_english_tweet_data.shape[0])
 f_english_tweet_data.drop_duplicates(subset ="tweetid", keep = 'first', inplace = True) 
+f_english_tweet_data.drop_duplicates(subset ="processed_tweets", keep = 'first', inplace = True)
 f_english_tweet_data = f_english_tweet_data.reset_index()
 print("Number of english tweets after filtering and preprocessing and dropping the duplicates: ", f_english_tweet_data.shape[0])
 
@@ -119,15 +119,15 @@ if __name__ == '__main__':
     #Start the multi-process pool on all available CUDA devices
     pool = model.start_multi_process_pool()
     #Compute the embeddings using the multi-process pool
-#     start_time = time.perf_counter()
-#     print('Beginning to encode\n')
+    start_time = time.perf_counter()
+    print('Beginning to encode\n')
 #     encodings = model.encode_multi_process(sentences, pool)
-#     end_time = time.perf_counter()
-#     print("Time taken for encoding is: ", (end_time - start_time)/60.0 ," minutes")
-#     print("Number of dimensions in the encodings", encodings.shape)
+    end_time = time.perf_counter()
+    print("Time taken for encoding is: ", (end_time - start_time)/60.0 ," minutes")
+    print("Number of dimensions in the encodings", encodings.shape)
     # save the encodings for later use. Order preserved
-#     np.save('encodings_stsb_roberta_large', encodings)
-    encodings = np.load('encodings_stsb_roberta_large.npy')
+#     np.save('encodings_stsb_roberta_large_deduplicated', encodings)
+    encodings = np.load('encodings_stsb_roberta_large_deduplicated.npy')
     print('shape of the encoding after reloading: ', encodings.shape)
 #     model.stop_multi_process_pool(pool)
   
