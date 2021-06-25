@@ -15,23 +15,6 @@ import nltk
 from sklearn.metrics import pairwise_distances
 from scipy.spatial.distance import cosine
 
-# list of all the dataset files
-dataset_paths = ["../../datasets/russia_052020_tweets_csv_hashed_2.csv", 
-         "../../datasets/russian_linked_tweets_csv_hashed.csv", 
-         "../../datasets/ira_tweets_csv_hashed.csv", 
-         "../../datasets/russia_201906_1_tweets_csv_hashed.csv"]
-
-# path to store the entire combined dataset
-combined_dataset_path = "../datasets/russian_trolls.csv"
-
-# returns a pandas dataframe consisting of entries from all the dataset files
-def get_combined_dataset(paths):
-    data = pd.concat((pd.read_csv(file) for file in tqdm(paths)))
-    return data
-
-# data = get_combined_dataset(dataset_paths)
-# print("Number of tweets in the dataset: ", data.shape[0])
-
 # takes list of tweets as input and returns list of pre-processed tweets as output
 def preprocess(tweets):
     processed_tweets = []
@@ -45,26 +28,6 @@ def preprocess(tweets):
         processed_tweets.append(result)
     return processed_tweets
 
-# Filtering data between 01.01.2016 to 01.07.2017
-# data['tweet_time'] = pd.to_datetime(data['tweet_time'], format = '%Y-%m-%d')
-# start_date = '2016-01-01'
-# end_date = '2017-07-01'
-# mask = (data['tweet_time'] > start_date) & (data['tweet_time'] <= end_date)
-# data = data.loc[mask]
-# print("Number of tweets in the dataset after filtering: ", data.shape[0])
-
-
-# extracts just the english tweets by using the language tag
-# is_english_tweet = data['tweet_language'] == 'en'
-# f_english_data = data[is_english_tweet]
-# print("Number of English tweets in the filtered dataset: ", f_english_data.shape[0])
-
-# removes the retweets
-# is_retweet = f_english_data['retweet_tweetid'].notnull()
-# f_english_data = f_english_data[~is_retweet]
-# print("Number of entries in the dataset after removing retweets: ", f_english_data.shape[0])
-
-# f_english_tweet_data = f_english_data[['tweetid', 'tweet_text']]
 data = pd.read_csv('./relevant_tweets.csv')
 f_english_tweet_data = data[['tweetid', 'tweet_text']]
 tweets = f_english_tweet_data['tweet_text']
@@ -130,15 +93,10 @@ if __name__ == '__main__':
     np.save('encodings_stsb_roberta_relevant_tweets', encodings)
     encodings = np.load('encodings_stsb_roberta_relevant_tweets.npy')
     print('shape of the encoding after reloading: ', encodings.shape)
-#     model.stop_multi_process_pool(pool)
   
 
     # takes list of posts as input and returns list of pre-processed posts as output
-    ''' 
-    Todo:
-    - check if the body says [deleted]
-    - check if the body is null
-    '''
+
     def preprocess(posts):
         processed_posts = []
         for post in posts:
@@ -173,12 +131,11 @@ if __name__ == '__main__':
 
     # input and output file definition
     filename = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/' + inputfile
-#     output_filename = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/' + inputfile + '-' + str(iterated)+'_scores_stsb.txt'
+
     print('starting from iteration: ', iterated)
     iteration = 0
     for chunk in pd.read_json(filename,lines = True, chunksize=10000):
         output_filename = '/INET/state-trolls/work/state-trolls/reddit_dataset/comments/scores/' + inputfile +'/' +str(iteration)+'_scores_stsb.txt'
-#         with open(output_filename, 'w') as outfile:
         print('Length of chunk before removing automoderator posts: ', len(chunk))
         chunk = chunk[chunk.author != 'AutoModerator']
         print('Length of chunk after removing automoderator posts: ', len(chunk))
@@ -191,10 +148,7 @@ if __name__ == '__main__':
                     sentences = nltk.sent_tokenize(row['body'])                
                     for idx,sentence in enumerate(sentences):
                         id_sentences.append({'id':row['id'], 'body': sentence, 's_id': idx})
-#                 sent_tokenize_end = time.perf_counter()
-#                 print("Time taken for sentence tokenization is :",
-#                       (sent_tokenize_end - sent_tokenize_begin)/60.0 ," minutes")
-#                 print('length of sentences is: ', len(id_sentences))
+
                 sentence_df = pd.DataFrame(id_sentences)
                 sentence_texts = sentence_df['body']
                 sentence_texts = preprocess(sentence_texts)
@@ -210,29 +164,11 @@ if __name__ == '__main__':
                 is_not_empty_string = chunk_id_body['preprocessed_body'].apply(lambda x: not x == '')
                 chunk_id_body = chunk_id_body[is_not_empty_string]
                 # encode the comments
-#                 start_time_e = time.perf_counter()
                 encoded_comments = model.encode_multi_process(chunk_id_body['preprocessed_body'].to_list(),
                                                               pool,batch_size = 512)
-#                 end_time_e = time.perf_counter()
-#                 print("Time taken for encoding comments is :", (end_time_e - start_time_e)/60.0 ,
-#                       " minutes. Iteration: ", iteration)
                 query = normalize_rows(encoded_comments)
-#                 start_time_s = time.perf_counter()
                 D, I = gpu_index.search(query, 1000) 
-#                 end_time_s = time.perf_counter()
-#                 print("Time taken for index search: ", (end_time_s - start_time_s)/60.0 ," minutes")
-    #             repeat_search_list = []
-
-#                 start_time_r = time.perf_counter()
                 repeat_search_list = ((np.where(np.all(D > 0.65, axis = 1)))[0]).tolist()
-    #             for loc, entry in enumerate(chunk_id_body.iterrows()):
-    #                 scores = D[loc]
-    #                 if (scores[999] > 0.65):
-    #                     repeat_search_list.append(loc)
-#                 end_time_r = time.perf_counter()
-#                 print("Time taken for repeated search list: ",(end_time_r - start_time_r)/60.0 ," minutes")
-#                 print('length of repeated search list: ', len(repeat_search_list))
-#                 start_time_l = time.perf_counter()
                 post_ids = chunk_id_body['id'].tolist()
                 sent_ids = chunk_id_body['s_id'].tolist()
                 for loc, post_id in enumerate(post_ids):
@@ -251,37 +187,19 @@ if __name__ == '__main__':
                             result_df['post_id'] = p_ids
                             result_df['cosine_similarity'] = relevant_scores
                             result_df['sent_id'] = s_ids
-#                             with open(output_filename, 'a') as outfile:
                             r = result_df.to_json(orient = "records")
-#                             print(result_df.shape) 
                             outfile.write(r)
                 end_time = time.perf_counter()
-#                 print("Time taken for looping: ",
-#                       iteration, 'is : ', (end_time - start_time_l)/60.0 ," minutes")
-#                 print("Time taken for iteration before repeated search is: ",
-#                       iteration, 'is : ', (end_time - start_time)/60.0 ," minutes")
-
                 k = 20000
                 while (len(repeat_search_list) > 0):
                     chunk_id_body = chunk_id_body.iloc[repeat_search_list]
                     print('length of chunk for only entries to be researched: ', len(chunk_id_body))
                     # encode the comments
-#                     start_time_e = time.perf_counter()
                     encoded_comments = model.encode_multi_process(chunk_id_body['preprocessed_body'].to_list(),
                                                                   pool,batch_size = 512)
-#                     end_time_e = time.perf_counter()
-#                     print("Time taken for encoding comments (repeateds search) is :", (end_time_e - start_time_e)/60.0 ,
-#                           " minutes. Iteration: ", iteration)
                     query = normalize_rows(encoded_comments)
 
                     D, I = index_cpu.search(query, k) 
-
-
-    #                 repeat_search_list = []
-    #                 for loc, entry in enumerate(chunk_id_body.iterrows()):
-    #                     scores = D[loc]
-    #                     if (scores[19999] > 0.65):
-    #                         repeat_search_list.append(loc)
                     repeat_search_list = ((np.where(np.all(D > 0.65, axis = 1)))[0]).tolist()
                     post_ids = chunk_id_body['id'].tolist()
                     sent_ids = chunk_id_body['s_id'].tolist()
@@ -301,7 +219,6 @@ if __name__ == '__main__':
                                 result_df['post_id'] = p_ids
                                 result_df['cosine_similarity'] = relevant_scores
                                 result_df['sent_id'] = s_ids
-#                                 with open(output_filename, 'a') as outfile:
                                 r = result_df.to_json(orient = "records")
                                 outfile.write(r)
                     k = k + 10000
