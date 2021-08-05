@@ -140,7 +140,7 @@ if __name__ == '__main__':
         chunk = chunk[chunk.author != 'AutoModerator']
         print('Length of chunk after removing automoderator posts: ', len(chunk))
         id_sentences = []
-        if ((iteration >= iterated) & (iteration < iterated + 1100)):
+        if ((iteration >= iterated) & (iteration < iterated + 950)):
             with open(output_filename, 'w') as outfile:
                 start_time = time.perf_counter()
 #                 sent_tokenize_begin = time.perf_counter()
@@ -168,14 +168,14 @@ if __name__ == '__main__':
                                                               pool,batch_size = 512)
                 query = normalize_rows(encoded_comments)
                 D, I = gpu_index.search(query, 1000) 
-                repeat_search_list = ((np.where(np.all(D > 0.65, axis = 1)))[0]).tolist()
+                repeat_search_list = ((np.where(np.all(D > 0.8, axis = 1)))[0]).tolist()
                 post_ids = chunk_id_body['id'].tolist()
                 sent_ids = chunk_id_body['s_id'].tolist()
                 for loc, post_id in enumerate(post_ids):
                     if (loc not in repeat_search_list):
                         scores = D[loc]
                         indices = I[loc]
-                        threshold_indices = np.where(scores >= 0.65)
+                        threshold_indices = np.where(scores >= 0.8)
                         if (len(threshold_indices[0]) > 0):
                             relevant_scores = scores[:threshold_indices[-1][-1]+1]
                             relevant_tweet_indices = indices[:threshold_indices[-1][-1]+1]
@@ -200,14 +200,14 @@ if __name__ == '__main__':
                     query = normalize_rows(encoded_comments)
 
                     D, I = index_cpu.search(query, k) 
-                    repeat_search_list = ((np.where(np.all(D > 0.65, axis = 1)))[0]).tolist()
+                    repeat_search_list = ((np.where(np.all(D > 0.8, axis = 1)))[0]).tolist()
                     post_ids = chunk_id_body['id'].tolist()
                     sent_ids = chunk_id_body['s_id'].tolist()
                     for loc, post_id in enumerate(post_ids):
                         if (loc not in repeat_search_list):
                             scores = D[loc]
                             indices = I[loc]
-                            threshold_indices = np.where(scores >= 0.65)
+                            threshold_indices = np.where(scores >= 0.8)
                             if (len(threshold_indices[0]) > 0):
                                 relevant_scores = scores[:threshold_indices[-1][-1]+1]
                                 relevant_tweet_indices = indices[:threshold_indices[-1][-1]+1]
@@ -224,14 +224,14 @@ if __name__ == '__main__':
                     k = k + 10000
                 end_time = time.perf_counter()
                 print("Time taken for iteration ", iteration, 'is : ', (end_time - start_time)/60.0 ," minutes")
-        elif not (iteration < iterated + 1100):
+        elif not (iteration < iterated + 950):
             break
         iteration = iteration + 1
     print('iteration to be written to file: ', iteration)
     with open("json_read_iteration.txt", "w") as file1: 
          file1.write(str(iteration))
 
-    if (iteration < iterated + 1100):
+    if (iteration < iterated + 950):
         with open("job_status.txt", "w") as file1: 
             file1.write(str('1'))
 
